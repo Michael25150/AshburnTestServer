@@ -26,15 +26,19 @@ fun main(args: Array<String>) {
                     val receiveChannel = socket.openReadChannel()
                     val sendChannel = socket.openWriteChannel(autoFlush = true)
                     while (true) {
-                        val lengthOfPayload = receiveChannel.readByte().toInt()
+                        val sizeBuffer = ByteArray(INTEGER_SIZE_BUFFER_LENGTH)
+                        receiveChannel.readFully(sizeBuffer, 0, INTEGER_SIZE_BUFFER_LENGTH)
+                        val lengthOfPayload = bytesToInt(sizeBuffer)
+
                         val requestPayload = ByteArray(lengthOfPayload)
                         receiveChannel.readFully(requestPayload, 0, lengthOfPayload)
+
                         logger.debug { "Read the following bytes: ${requestPayload.joinToString("")}" }
 
                         val responsePayload = processRequest(requestPayload)
+                        val resp = intToBytes(responsePayload.size) + responsePayload
 
-                        sendChannel.writeByte(responsePayload.size.toByte())
-                        sendChannel.writeFully(responsePayload, 0, responsePayload.size)
+                        sendChannel.writeFully(resp, 0, responsePayload.size)
                     }
                 } catch (e: ClosedReceiveChannelException) {
                     logger.info { "Connection was closed from client side" }
@@ -48,6 +52,8 @@ fun main(args: Array<String>) {
         }
     }
 }
+
+private const val INTEGER_SIZE_BUFFER_LENGTH = 4
 
 fun processRequest(requestPayload: ByteArray): ByteArray {
     val unpacked = unpack(requestPayload.toMutableList())
